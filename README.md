@@ -3,6 +3,7 @@
 Requirements:
 
 * Maven - to build the war file
+* JDK 1.7 
 
 
 Steps:
