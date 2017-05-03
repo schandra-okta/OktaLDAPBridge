@@ -167,7 +167,7 @@ public class UpdateOktaGroupMembershipResource {
             
         }
                  
-        Set<String> jdMemberListSet = new HashSet<>(li);
+        Set<String> jdMemberListSet = new HashSet<String>(li);
         // remove whitespaces in the Group names
         
         
@@ -178,7 +178,7 @@ public class UpdateOktaGroupMembershipResource {
         System.out.println("7878787    " + jArr.length());
         int i = 0;
         //ArrayList userInGroups = new ArrayList();
-        Set<String> userInGroupsSet = new HashSet<>();
+        Set<String> userInGroupsSet = new HashSet<String>();
         
         Iterator<Object> itr = jArr.iterator();
         while(itr.hasNext()) {
@@ -203,9 +203,9 @@ public class UpdateOktaGroupMembershipResource {
         
         System.out.println("54554545 userInGroupsSet " + userInGroupsSet.toString());
         
-        Set<String> s1 = new HashSet<>(jdMemberListSet);
+        Set<String> s1 = new HashSet<String>(jdMemberListSet);
         
-        Set<String> s2 = new HashSet<>(userInGroupsSet);
+        Set<String> s2 = new HashSet<String>(userInGroupsSet);
         
         s1.removeAll(userInGroupsSet);
          

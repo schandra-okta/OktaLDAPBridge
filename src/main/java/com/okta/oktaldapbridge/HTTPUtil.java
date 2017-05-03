@@ -83,22 +83,32 @@ public final class HTTPUtil {
             if (ret.responseCode == 200) {
                 InputStream s = conn.getInputStream();
                 if (s != null) {
-                    try (BufferedReader rd = new BufferedReader(new InputStreamReader(s))) {
+                    try {
+                        BufferedReader rd = new BufferedReader(new InputStreamReader(s));
                         ret.output = "";
                         while ((line = rd.readLine()) != null) {
                             ret.output += line;
                         }
                     }
+                    catch(IOException ioe)
+                    {
+                        throw ioe;
+                    }
                 }
             } else {
                 InputStream s = conn.getErrorStream();
                 if (s != null) {
-                    try (BufferedReader rd = new BufferedReader(new InputStreamReader(s))) {
+                    try {
+                        BufferedReader rd = new BufferedReader(new InputStreamReader(s));
                         ret.errorOutput = "";
                         while ((line = rd.readLine()) != null) {
                             ret.errorOutput += line;
                         }
                     }
+                    catch(IOException ioe)
+                    {
+                        throw ioe;
+                    }                   
                 }
             }
             String rll = conn.getHeaderField("X-Rate-Limit-Limit");
@@ -140,22 +150,32 @@ public final class HTTPUtil {
             if (ret.responseCode == 201 || ret.responseCode == 200) {
                 InputStream s = conn.getInputStream();
                 if (s != null) {
-                    try (BufferedReader rd = new BufferedReader(new InputStreamReader(s))) {
+                    try {
+                        BufferedReader rd = new BufferedReader(new InputStreamReader(s));
                         ret.output = "";
                         while ((line = rd.readLine()) != null) {
                             ret.output += line;
                         }
                     }
+                    catch(IOException ioe)
+                    {
+                        throw ioe;
+                    }
                 }
             } else {
                 InputStream s = conn.getErrorStream();
                 if (s != null) {
-                    try (BufferedReader rd = new BufferedReader(new InputStreamReader(s))) {
+                    try {
+                        BufferedReader rd = new BufferedReader(new InputStreamReader(s));
                         ret.errorOutput = "";
                         while ((line = rd.readLine()) != null) {
                             ret.errorOutput += line;
                         }
                     }
+                    catch(IOException ioe)
+                    {
+                        throw ioe;
+                    }                   
                 }
             }
             String rll = conn.getHeaderField("X-Rate-Limit-Limit");
@@ -197,22 +217,32 @@ public final class HTTPUtil {
             if (ret.responseCode == 201 || ret.responseCode == 200 || ret.responseCode == 204) {
                 InputStream s = conn.getInputStream();
                 if (s != null) {
-                    try (BufferedReader rd = new BufferedReader(new InputStreamReader(s))) {
+                    try {
+                        BufferedReader rd = new BufferedReader(new InputStreamReader(s));
                         ret.output = "";
                         while ((line = rd.readLine()) != null) {
                             ret.output += line;
                         }
                     }
+                    catch(IOException ioe)
+                    {
+                        throw ioe;
+                    }
                 }
             } else {
                 InputStream s = conn.getErrorStream();
                 if (s != null) {
-                    try (BufferedReader rd = new BufferedReader(new InputStreamReader(s))) {
+                    try {
+                        BufferedReader rd = new BufferedReader(new InputStreamReader(s));
                         ret.errorOutput = "";
                         while ((line = rd.readLine()) != null) {
                             ret.errorOutput += line;
                         }
                     }
+                    catch(IOException ioe)
+                    {
+                        throw ioe;
+                    }                   
                 }
             }
             String rll = conn.getHeaderField("X-Rate-Limit-Limit");
@@ -253,22 +283,32 @@ public final class HTTPUtil {
             if (ret.responseCode == 201 || ret.responseCode == 200 || ret.responseCode == 204) {
                 InputStream s = conn.getInputStream();
                 if (s != null) {
-                    try (BufferedReader rd = new BufferedReader(new InputStreamReader(s))) {
+                    try {
+                        BufferedReader rd = new BufferedReader(new InputStreamReader(s));
                         ret.output = "";
                         while ((line = rd.readLine()) != null) {
                             ret.output += line;
                         }
                     }
+                    catch(IOException ioe)
+                    {
+                        throw ioe;
+                    }
                 }
             } else {
                 InputStream s = conn.getErrorStream();
                 if (s != null) {
-                    try (BufferedReader rd = new BufferedReader(new InputStreamReader(s))) {
+                    try {
+                        BufferedReader rd = new BufferedReader(new InputStreamReader(s));
                         ret.errorOutput = "";
                         while ((line = rd.readLine()) != null) {
                             ret.errorOutput += line;
                         }
                     }
+                    catch(IOException ioe)
+                    {
+                        throw ioe;
+                    }                   
                 }
             }
             String rll = conn.getHeaderField("X-Rate-Limit-Limit");
