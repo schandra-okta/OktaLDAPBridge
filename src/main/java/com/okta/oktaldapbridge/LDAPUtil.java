@@ -7,24 +7,29 @@ package com.okta.oktaldapbridge;
 
 import java.util.Enumeration;
 import java.util.Properties;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import javax.naming.Context;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.naming.directory.Attribute;
 import javax.naming.directory.Attributes;
+import javax.naming.directory.BasicAttribute;
 import javax.naming.directory.DirContext;
 import javax.naming.directory.InitialDirContext;
+import javax.naming.directory.ModificationItem;
 import javax.naming.directory.SearchControls;
 import javax.naming.directory.SearchResult;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 import org.json.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -32,8 +37,15 @@ import org.json.*;
  * @author sundarganesan
  */
 public final class LDAPUtil {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LDAPUtil.class);
+
     //List of attributes to searched and returned in the JSON object
-    static String[] attributeFilter = { "uid", "mail", "sn", "givenName", "JDMember", "jdUserClass", "jdAccountState", "jdConsentTime", };
+    static String[] attributeFilter = null;
+    static String dbuser = "";
+    static String dbpassword = "";
+    static String connectionString = "";
+    static String searchbase = "";
+    static String attributes = "";
     
     private static final LDAPUtil onlyInstance = new LDAPUtil();
     
@@ -44,33 +56,34 @@ public final class LDAPUtil {
     
     private LDAPUtil() {
         Properties prop = new Properties();
-	InputStream input = null;
+        InputStream input = null;
 
-	try {
-                input = LDAPUtil.class.getResourceAsStream("/OktaLDAPBridgeConfig.properties");
-		//input = new FileInputStream("OktaLDAPBridgeConfig.properties");
+        try {
+            input = LDAPUtil.class.getResourceAsStream("/OktaLDAPBridgeConfig.properties");
+            EncryptionUtil encUtilInstance = EncryptionUtil.getInstance();
 
-		// load a properties file
-		prop.load(input);
+            // load properties file
+            prop.load(input);
 
-		// get the property value and print it out
-		System.out.println(prop.getProperty("database"));
-		System.out.println(prop.getProperty("dbuser"));
-		System.out.println(prop.getProperty("dbpassword"));
+            dbuser = encUtilInstance.decryptAES(prop.getProperty("dbuser"));
+            dbpassword = encUtilInstance.decryptAES(prop.getProperty("dbpassword"));
+            connectionString = prop.getProperty("connectionString");
+            searchbase = prop.getProperty("searchbase");
+            attributes = prop.getProperty("attributes");
 
-	} catch (IOException ex) {
-		ex.printStackTrace();
-	} finally {
-		if (input != null) {
-			try {
-				input.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
-	}
+            attributeFilter = attributes.split(",");
 
-        
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        } finally {
+            if (input != null) {
+                try {
+                    input.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }        
     }
     
     
@@ -80,21 +93,20 @@ public final class LDAPUtil {
 
     String sp = "com.sun.jndi.ldap.LdapCtxFactory";
     env.put(Context.INITIAL_CONTEXT_FACTORY, sp);
-
-    String ldapUrl = "ldap://localhost:1389/dc=example,dc=com";
-    env.put(Context.PROVIDER_URL, ldapUrl);
+    env.put(Context.PROVIDER_URL, connectionString);
+    env.put(Context.SECURITY_AUTHENTICATION, "simple");
+    env.put(Context.SECURITY_PRINCIPAL, dbuser);
+    env.put(Context.SECURITY_CREDENTIALS, dbpassword);
 
     DirContext dctx = new InitialDirContext(env);
 
 
-    String base = "ou=People";
+    String base = searchbase;
 
     SearchControls sc = new SearchControls();
     
     sc.setReturningAttributes(attributeFilter);
     sc.setSearchScope(SearchControls.SUBTREE_SCOPE);
-
-    //filter = "(&(sn=Atp)(l=New Haven))";
 
     NamingEnumeration results = dctx.search(base, filter, sc);
     int i = 0;
@@ -111,6 +123,55 @@ public final class LDAPUtil {
         throw new javax.naming.NamingException("Check username");
     }
     return retStr;
+  }
+
+  public static boolean updateLDAP(String filter, Map<String, Object> attrValmap) throws Exception {
+    Properties env = new Properties();
+
+    String sp = "com.sun.jndi.ldap.LdapCtxFactory";
+    env.put(Context.INITIAL_CONTEXT_FACTORY, sp);
+    env.put(Context.PROVIDER_URL, connectionString);
+    env.put(Context.SECURITY_AUTHENTICATION, "simple");
+    env.put(Context.SECURITY_PRINCIPAL, dbuser);
+    env.put(Context.SECURITY_CREDENTIALS, dbpassword);
+
+    DirContext dctx = new InitialDirContext(env);
+
+    String base = searchbase;
+
+    SearchControls sc = new SearchControls();
+    
+    sc.setReturningAttributes(new String[]{"dn"});//Don't need the rest
+    sc.setSearchScope(SearchControls.SUBTREE_SCOPE);
+
+    NamingEnumeration results = dctx.search(base, filter, sc);
+    int i = 0;
+    SearchResult sr = (SearchResult) results.next();
+    i++;
+    while(results.hasMore()){
+         i++;
+    }
+    dctx.close();
+    if(i==1) {
+        
+        String dn = sr.getAttributes().get("dn").get().toString();
+        ModificationItem[] mods = new ModificationItem[attrValmap.keySet().size()];
+        int count = 0;
+        Iterator it = attrValmap.keySet().iterator();
+        while (it.hasNext())
+        {
+            String key = it.next().toString();
+            String val = attrValmap.get(key).toString();
+            Attribute mod = new BasicAttribute(key, val);
+            mods[count++] = new ModificationItem(DirContext.REPLACE_ATTRIBUTE, mod);
+        }
+
+        dctx.modifyAttributes(dn, mods);
+
+    } else {
+        throw new javax.naming.NamingException("Check username");
+    }
+    return true;
   }
   
   public static String convertToJson(SearchResult sr) {
@@ -141,16 +202,16 @@ public final class LDAPUtil {
                     
                 }
             } catch (NamingException ex) {
-                Logger.getLogger(LDAPUtil.class.getName()).log(Level.SEVERE, null, ex + " Unable to retrieve attribute to build JSON");
+                LOGGER.error(ex + " Unable to retrieve attribute to build JSON");
                 
             }
-            System.out.println("debug 444 " + value);
-            //System.out.println("debug 555 " + value.substring(value.in));
+            LOGGER.debug("debug 444 " + value);
+            //LOGGER.debug("debug 555 " + value.substring(value.in));
             retObj.put(name, value);
             i++;
       }
       
-      System.out.println(retObj.toString());
+      LOGGER.debug(retObj.toString());
       return retObj.toString();
   }
 }

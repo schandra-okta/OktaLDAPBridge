@@ -24,6 +24,9 @@ import java.text.MessageFormat;
 import java.util.Properties;
 import javax.ws.rs.core.Response;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * REST Web Service
  *
@@ -32,6 +35,7 @@ import javax.ws.rs.core.Response;
 @Path("UserType/{userName}")
 public class UserTypeResource {
     
+    private static final Logger LOGGER = LoggerFactory.getLogger(UserTypeResource.class);
     String searchFilter = "(uid={0})";
     /**
      * Creates a new instance of UserTypeResource
@@ -54,7 +58,7 @@ public class UserTypeResource {
             //return Response.serverError().entity("userName cannot be blank").build();
         }
         //TODO return proper representation object
-        System.out.println("debug 1     " + userName);
+        LOGGER.debug("debug 1     " + userName);
         searchFilter = MessageFormat.format(searchFilter,userName);
         String result = new String();
         try {
@@ -75,34 +79,4 @@ public class UserTypeResource {
         //return Response.ok(resp, MediaType.APPLICATION_JSON).build();
 
     }
-
-    
-    /**
-     * POST method for updating or creating an instance of UpdateOktaGroupMembershipResource
-     * @param content representation for the resource
-     */
-    /*
-    @POST
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    public void postJson(String content) {
-        System.out.println("debug 1     ");
-        System.out.println(content);
-        JSONObject postObj = new JSONObject(content);
-        System.out.println("debug 2     ");
-        String uname = postObj.getString("userName");
-        System.out.println("debug 3     ");
-        System.out.println("username " + uname);
-        String filter = "(cn=" + uname + ")";
-        JSONObject jsonObject = new JSONObject();
-		jsonObject.put("F Value", "98F"); 
-		jsonObject.put("C Value", "35C");
-        String result = "@Produces(\"application/json\") Output: \n\nF to C Converter Output: \n\n" + jsonObject;
-        try {
-        LDAPUtil.queryLDAP(filter);
-        } catch (Exception e) {
-            System.out.println("Exception querying LDAP");
-        }
-        //return result;
-    } */
 }

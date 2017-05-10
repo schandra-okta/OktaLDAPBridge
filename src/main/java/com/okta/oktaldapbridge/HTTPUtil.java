@@ -18,13 +18,15 @@ import java.util.Properties;
 import java.lang.*;
 import java.net.Proxy;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author sundarganesan
  */
 public final class HTTPUtil {
-        static String getOktaUserAPI = "";
+    private static final Logger LOGGER = LoggerFactory.getLogger(HTTPUtil.class);
         static String oktaApiKey = "";
         private static final HTTPUtil onlyInstance = new HTTPUtil();
         
@@ -32,33 +34,29 @@ public final class HTTPUtil {
         return onlyInstance;
         
         }
-        public HTTPUtil() {
+        private HTTPUtil() {
              Properties prop = new Properties();
-	InputStream input = null;
+            InputStream input = null;
 
-	try {
+            try {
+                EncryptionUtil encUtilInstance = EncryptionUtil.getInstance();
                 input = LDAPUtil.class.getResourceAsStream("/OktaLDAPBridgeConfig.properties");
-		//input = new FileInputStream("OktaLDAPBridgeConfig.properties");
 
-		// load a properties file
-		prop.load(input);
+                // load a properties file
+                prop.load(input);
                 
-                getOktaUserAPI = prop.getProperty("oktaUserApi");
-                oktaApiKey = prop.getProperty("oktaApiKey");
-		// get the property value and print it out
-		
-
-	} catch (IOException ex) {
-		ex.printStackTrace();
-	} finally {
-		if (input != null) {
-			try {
-				input.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
-	}
+                oktaApiKey = encUtilInstance.decryptAES(prop.getProperty("oktaApiKey"));
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            } finally {
+                if (input != null) {
+                    try {
+                        input.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
 
         }
 	

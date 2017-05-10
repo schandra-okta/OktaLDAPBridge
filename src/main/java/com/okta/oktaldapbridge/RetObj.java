@@ -20,9 +20,7 @@ public class RetObj {
         public int rateLimitReset;
         
         public static String stripSquareBracs(String retoutput) {
-            System.out.println("5555 " + retoutput);
             retoutput = retoutput.replaceAll("\\[", "").replaceAll("\\]","");
-            System.out.println("6666 " + retoutput);
             return retoutput;
         }
     }
