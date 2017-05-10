@@ -23,8 +23,6 @@
     </appender>
 
     <logger name="com.okta" level="DEBUG"/>
-    <logger name="com.okta" level="DEBUG"/>
-    <logger name="com.mgm" level="DEBUG"/>
 
     <root level="DEBUG">
         <appender-ref ref="logfile"/>
