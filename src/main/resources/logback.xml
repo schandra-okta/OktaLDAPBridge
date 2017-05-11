@@ -22,7 +22,7 @@
         </triggeringPolicy>
     </appender>
 
-    <logger name="com.okta" level="DEBUG"/>
+    <logger name="com.okta" level="WARN"/>
 
     <root level="DEBUG">
         <appender-ref ref="logfile"/>

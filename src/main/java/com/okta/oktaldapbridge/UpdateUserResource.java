@@ -33,6 +33,7 @@ public class UpdateUserResource {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(UpdateUserResource.class);
     String oktaAPIUrlPrefix = new String();
+    HTTPUtil myHTTPUtil = null;
 
     @Context
     private UriInfo context;
@@ -51,15 +52,16 @@ public class UpdateUserResource {
             prop.load(input);
 
             oktaAPIUrlPrefix = prop.getProperty("oktaAPIUrlPrefix");
+            myHTTPUtil = HTTPUtil.getInstance();
 
         } catch (IOException ex) {
-            ex.printStackTrace();
+            LOGGER.error("Error during reading config file : ", ex);
         } finally {
             if (input != null) {
                 try {
                     input.close();
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    LOGGER.error("Error closing config file handle : ", e);
                 }
             }
         }
@@ -88,16 +90,22 @@ public class UpdateUserResource {
         //Read username from content 
         JSONObject input = new JSONObject(content);
         String userName = input.getString("userName");
+        LOGGER.debug("Received Update User call for : " + userName);
+        if(userName == null || userName.trim().length() == 0) {
+            LOGGER.error("Empty or missing userName passed.");
+            return Response.status(Response.Status.BAD_REQUEST).entity("userName cannot be empty").build();
+        }
+        
         Map<String, Object> attrValmap = input.toMap();
         attrValmap.remove("userName");
         
         //Update Okta
         try
         {
-            String userResourceURI = oktaAPIUrlPrefix+"/Users/"+userName;
+            String userResourceURI = oktaAPIUrlPrefix+"/users/"+userName;
             JSONObject oktaPartialProfileToUpdate = new JSONObject();
             oktaPartialProfileToUpdate.put("profile", attrValmap);
-            HTTPUtil.post(userResourceURI, oktaPartialProfileToUpdate.toString());
+            myHTTPUtil.post(userResourceURI, oktaPartialProfileToUpdate.toString());
         } catch (Exception ex) {
             LOGGER.error(null, ex);
             return Response.status(Response.Status.NOT_FOUND).entity("Entry not updated in Okta for userName: " + userName).build();
@@ -112,7 +120,9 @@ public class UpdateUserResource {
             LOGGER.error(null, ex);
             return Response.status(Response.Status.NOT_FOUND).entity("Entry not updated in LDAP for userName: " + userName).build();
         }  
-        
-        return Response.status(Response.Status.OK).entity(""/*resp.toString()*/).build();
+        // Build response object
+        JSONObject resp = new JSONObject();
+        resp.put("status", "SUCCESS");
+        return Response.status(Response.Status.OK).entity(resp.toString()).build();        
     }
 }

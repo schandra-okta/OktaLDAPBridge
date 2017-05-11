@@ -52,6 +52,7 @@ public class UpdateOktaGroupMembershipResource {
     String oktaAddDeleteUserToGroupUrl = new String();
     boolean oktaNewLDAPAgentAvailable = false;
     String oktaJDMemberAttrName = new String();
+    HTTPUtil myHTTPUtil = null;
     
     @Context
     private UriInfo context;
@@ -70,7 +71,7 @@ public class UpdateOktaGroupMembershipResource {
             prop.load(input);
 
             oktaAPIUrlPrefix = prop.getProperty("oktaAPIUrlPrefix");
-            oktaSearchUserUrl = oktaAPIUrlPrefix+"/users?q=";
+            oktaSearchUserUrl = oktaAPIUrlPrefix+"/users/";
             oktaSearchGroupUrl = oktaAPIUrlPrefix+"/groups?q=";
             oktaCreateGroupUrl = oktaAPIUrlPrefix+"/groups";
             oktaAddDeleteUserToGroupUrl = oktaAPIUrlPrefix+"/groups/{0}/users/{1}";
@@ -78,15 +79,16 @@ public class UpdateOktaGroupMembershipResource {
 
             oktaNewLDAPAgentAvailable = Boolean.parseBoolean(prop.getProperty("oktaNewLDAPAgentAvailable", "false"));
             oktaJDMemberAttrName = prop.getProperty("oktaJDMemberAttrName", "jdMember");
+            myHTTPUtil = HTTPUtil.getInstance();
 
         } catch (IOException ex) {
-            ex.printStackTrace();
+            LOGGER.error("Error during reading config file : ", ex);
         } finally {
             if (input != null) {
                 try {
                     input.close();
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    LOGGER.error("Error closing config file handle : ", e);
                 }
             }
         }
@@ -104,8 +106,13 @@ public class UpdateOktaGroupMembershipResource {
     public Response postJson(String content) {
         
         //Read username from content 
-        String username = new JSONObject(content).getString("userName");
-        
+        String userName = new JSONObject(content).getString("userName");
+        LOGGER.debug("Receive update groups call for : " + userName);
+        if(userName == null || userName.trim().length() == 0) {
+            LOGGER.error("Empty or missing userName passed.");
+            return Response.status(Response.Status.BAD_REQUEST).entity("userName cannot be empty").build();
+        }
+       
         String ldapObjStr = new String();
         String oktaObjStr = new String();
         String oktaGroupMemStr = new String();
@@ -113,216 +120,167 @@ public class UpdateOktaGroupMembershipResource {
 
         try {
             //Query LDAP for username and get JDMember attributes of the entry
-            ldapObjStr = LDAPUtil.queryLDAP("(uid="+username + ")");
-            LOGGER.debug("0000000 ldapObjStr " + ldapObjStr);
+            ldapObjStr = LDAPUtil.queryLDAP("(uid="+userName + ")");
+            LOGGER.debug("ldapObjStr : " + ldapObjStr);
         } catch (Exception ex) {
             LOGGER.error(null, ex);
-            return Response.status(Response.Status.NOT_FOUND).entity("User not found in LDAP for userName: " + username).build();
+            return Response.status(Response.Status.NOT_FOUND).entity("User not found in LDAP for userName: " + userName).build();
         }  
             
         //Query Okta for User with username in content
         String uUrl = oktaSearchUserUrl;
         
-        
         try {
-            uUrl = uUrl + URLEncoder.encode(username, "UTF-8");
-            LOGGER.debug("1111111 oktaObjStr Url " + uUrl);
-            ret = HTTPUtil.get(uUrl);
+            uUrl = uUrl + URLEncoder.encode(userName, "UTF-8");
+            LOGGER.debug("Calling Okta Users API GET : " + uUrl);
+            ret = myHTTPUtil.get(uUrl);
         } catch (UnsupportedEncodingException ex) {
             LOGGER.error(null, ex);
         }
-        LOGGER.debug("1111111 retArray " + ret.output);
+        LOGGER.debug("Return from GET : " + ret.output);
         
-        oktaObjStr = RetObj.stripSquareBracs(ret.output);
+        oktaObjStr = ret.output;
         
         String uUid = new String();
         //Extract UID from Okta's response
         if(oktaObjStr!= null) {
             JSONObject jObj = new JSONObject(oktaObjStr);
             uUid = jObj.getString("id");
-            LOGGER.debug("3313131 uUid " + uUid);
+            LOGGER.debug("Found user with uUid " + uUid);
         }
         //Query Okta for user's group membership
         String gUrl = MessageFormat.format(oktaGetGroupMembershipUrl, uUid);
         
-        LOGGER.debug("2121221 oktaGroupMemStr URL " + gUrl);
-      
-            //oktaGroupMemStr = HTTPUtil.httpGet(gUrl + URLEncoder.encode(username, "UTF-8"));
-            ret = HTTPUtil.get(gUrl);
-       
-        LOGGER.debug("2121221 retArray " + ret.output);
+        LOGGER.debug("Calling Okta Groups API GET : " + gUrl);      
+        ret = myHTTPUtil.get(gUrl);       
+        LOGGER.debug("Return from GET : " + ret.output);
         
-        //oktaGroupMemStr = RetObj.stripSquareBracs(ret.output);
         oktaGroupMemStr = ret.output;
         
         //Compare user's current group membership with JDMember groups
         JSONObject lObj = new JSONObject(ldapObjStr);
-        LOGGER.debug("6767676" + lObj.get("JDMember"));
         String jdMemberListStr = (String)lObj.get("JDMember");
-        //ArrayList jdMemberList = new ArrayList();
+        LOGGER.debug("JDMember value from LDAP : " + jdMemberListStr);
         List li = Arrays.asList(jdMemberListStr.split(","));
         int ctr = 0;
         while (ctr < li.size()) {
+            // remove whitespaces in the Group names
             li.set(ctr, ((String)li.get(ctr)).trim());
             ctr++;
-            
         }
                  
         Set<String> jdMemberListSet = new HashSet<String>(li);
-        // remove whitespaces in the Group names
-                
-        JSONObject uObj = new JSONObject(oktaObjStr);
-        
+        JSONObject uObj = new JSONObject(oktaObjStr);       
         JSONArray jArr = new JSONArray(oktaGroupMemStr);
         
-        LOGGER.debug("7878787    " + jArr.length());
+        LOGGER.debug("Length of JSON Array for Current Okta Groups : " + jArr.length());
         int i = 0;
-        //ArrayList userInGroups = new ArrayList();
         Set<String> userInGroupsSet = new HashSet<String>();
         
         Iterator<Object> itr = jArr.iterator();
         while(itr.hasNext()) {
             JSONObject temp = (JSONObject)itr.next();
-             LOGGER.debug("7878787 string " + i + " " + temp.toString());
-            LOGGER.debug("7878787 id " + temp.get("id"));
-            LOGGER.debug("7878787 profile " + temp.get("profile"));
+            LOGGER.debug("Group " + i + " JSON : " + temp.toString());
+            LOGGER.debug("Group id : " + temp.get("id"));
+            LOGGER.debug("Group profile JSON : " + temp.get("profile"));
             JSONObject pro = temp.getJSONObject("profile");
             String gname = (String)pro.get("name");
-            LOGGER.debug("7878787 gname " + gname);
+            LOGGER.debug("Group name : " + gname);
             String type = (String)temp.get("type");
-            LOGGER.debug("7878787 name " + temp.get("type"));
-            if (gname.equals("Everyone") || gname.startsWith("okta_")) {
-                 LOGGER.debug("898989 Skipping group!!!!!");  
+            LOGGER.debug("Group type : " + temp.get("type"));
+            if (gname.equals("Everyone") || gname.toLowerCase().startsWith("okta_")) {
+                 LOGGER.debug("Skipping group!!!!!");  
 
             } else {
                 userInGroupsSet.add(gname.trim());
             }
         }
           
-        LOGGER.debug("54554545 jdMemberListSet " + jdMemberListSet.toString());
+        LOGGER.debug("jdMemberListSet " + jdMemberListSet.toString());
         
-        LOGGER.debug("54554545 userInGroupsSet " + userInGroupsSet.toString());
+        LOGGER.debug("userInGroupsSet " + userInGroupsSet.toString());
         
         Set<String> s1 = new HashSet<String>(jdMemberListSet);
-        
         Set<String> s2 = new HashSet<String>(userInGroupsSet);
         
         s1.removeAll(userInGroupsSet);
-         
-        
         s2.removeAll(jdMemberListSet);
         
-        LOGGER.debug("81818181 - Groups to be added to user " + s1.toString());
-        
-        LOGGER.debug("81818181 - Groups to be removed from user " + s2.toString());
+        LOGGER.debug("Groups to be added to user : " + s1.toString());
+        LOGGER.debug("Groups to be removed from user : " + s2.toString());
         
         Iterator<String> s1itr = s1.iterator();
-        
             
         while(s1itr.hasNext()) {
             String g = s1itr.next();
             g=g.trim();
             String gid = getGroupId(g);
             if(gid.contains("NOT FOUND")) {
-                LOGGER.debug("Need to create Group"); 
+                LOGGER.debug("Need to create Group : "+g); 
                 gUrl = oktaCreateGroupUrl;
                 JSONObject jobj = new JSONObject();
                 JSONObject jpro = new JSONObject();
                 jpro.put("name", g);
                 jpro.put("description", g);
                 jobj.put("profile", jpro);
-                RetObj retAns = HTTPUtil.post(gUrl, jobj.toString());
+                RetObj retAns = myHTTPUtil.post(gUrl, jobj.toString());
                 if(retAns.responseCode != 200) {
-                    //To Do Error Handling
                     LOGGER.debug("Error creating group");
-                    continue;
+                    return Response.status(Response.Status.BAD_REQUEST).entity("Runtime Exception: Unable to create required Group").build();    
                 } else {
                     LOGGER.debug(retAns.output);
-                    //String temp = RetObj.stripSquareBracs(retAns.output);
                     int start = retAns.output.indexOf("id");
                     int end = retAns.output.indexOf("created");
                     String temp = retAns.output.substring(start+5, end-3);
-                    //JSONArray jArr2 = new JSONArray(temp);
-                   
-                    //JSONObject j = jArr2.getJSONObject(1);
-                    //gid = j.getString("id");
+                    LOGGER.debug("Successfully created Group : "+g); 
                     
                     gid = temp;
                     
                     String tUrl = MessageFormat.format(oktaAddDeleteUserToGroupUrl, gid, uUid);
-                    RetObj reto2 = HTTPUtil.put(tUrl, "");
+                    RetObj reto2 = myHTTPUtil.put(tUrl, "");
                     if (reto2.responseCode == 204) {
                         LOGGER.debug("Adding user " + uUid + " to group " + gid + " COMPLETE");
                     } else {
-                        LOGGER.debug("Adding user " + uUid + " to group " + gid + " FAILED!!!!!!");
+                        LOGGER.error("Adding user " + uUid + " to group " + gid + " FAILED!!!!!!");
                         return Response.status(Response.Status.BAD_REQUEST).entity("Runtime Exception: Unable to add user to Group").build();    
                     }
-                    
                 }
-                    
             } else if(gid.contains("MULTIPLE")) {
-                LOGGER.debug("THROW Error"); 
-                // To Do: ERROR HANDLING
-                //return "Runtime Exception: MULTIPLE GROUPS FOUND";
-                return Response.status(Response.Status.BAD_REQUEST).entity("Runtime Exception: Multiple values returned rom Okta for a JDMember group name").build();
-               
-               
+                LOGGER.error("Multiple groups with same name found. Returning failure."); 
+                return Response.status(Response.Status.BAD_REQUEST).entity("Runtime Exception: Multiple values returned from Okta for a JDMember group name").build();
             } else {
-            
                 LOGGER.debug("Adding user " + uUid + " to group " + gid);
                 String tUrl = MessageFormat.format(oktaAddDeleteUserToGroupUrl, gid, uUid);
-                RetObj retAns2 = HTTPUtil.put(tUrl, "");
+                RetObj retAns2 = myHTTPUtil.put(tUrl, "");
                 if (retAns2.responseCode == 204) {
                     LOGGER.debug("Adding user " + uUid + " to group " + gid + " COMPLETE");
                 } else {
-                    LOGGER.debug("Adding user " + uUid + " to group " + gid + " FAILED!!!!!!");
+                    LOGGER.error("Adding user " + uUid + " to group " + gid + " FAILED!!!!!!");
                     return Response.status(Response.Status.BAD_REQUEST).entity("Runtime Exception: Unable to add user to Group").build();    
                 }
             }
-            
         }
         
-        
         Iterator<String> s2itr = s2.iterator();
-        
-            
         while(s2itr.hasNext()) {
             String g = s2itr.next();
             g=g.trim();
             String gid = getGroupId(g);
             if(gid.contains("MULTIPLE")) {
-                LOGGER.debug("THROW Error"); 
-                // To Do: ERROR HANDLING
-                return Response.status(Response.Status.BAD_REQUEST).entity("Runtime Exception: Multiple values returned rom Okta for a JDMember group name").build();
-               
-               
+                LOGGER.error("Multiple groups with same name found. Returning failure."); 
+                return Response.status(Response.Status.BAD_REQUEST).entity("Runtime Exception: Multiple values returned from Okta for a JDMember group name").build();
             } else {
                 LOGGER.debug("Removing user " + uUid + " from group " + gid);
                 String tUrl = MessageFormat.format(oktaAddDeleteUserToGroupUrl, gid, uUid);
-                RetObj reto = HTTPUtil.delete(tUrl, "");
+                RetObj reto = myHTTPUtil.delete(tUrl, "");
                 if (reto.responseCode == 204) {
                     LOGGER.debug("Removing user " + uUid + " to group " + gid + " COMPLETE");
                 } else {
-                    LOGGER.debug("Removing user " + uUid + " to group " + gid + " FAILED!!!!!!");
+                    LOGGER.error("Removing user " + uUid + " to group " + gid + " FAILED!!!!!!");
                     return Response.status(Response.Status.BAD_REQUEST).entity("Runtime Exception: Unable to delete user from Group").build();
-               
                 }
-                
             }
-            
-            
         }
-        
-        
-        //JSONObject gObj = new JSONObject(oktaGroupMemStr);
-        
-        
-        //LOGGER.debug("7878787" + gObj.get("name"));
-        
-        
-        //Create group is required
-
-        //Update group membership if required
         
         if(!oktaNewLDAPAgentAvailable){
             //Build the JSON string to update user's Okta profile
@@ -331,7 +289,7 @@ public class UpdateOktaGroupMembershipResource {
             oktaProfileInner.put(oktaJDMemberAttrName, jdMemberListSet);
             oktaProfileObj.put("profile", oktaProfileInner);
             String userResourceURI = oktaAPIUrlPrefix+"/users/"+uUid;
-            HTTPUtil.post(userResourceURI, oktaProfileObj.toString());
+            myHTTPUtil.post(userResourceURI, oktaProfileObj.toString());
         }
         
         // Build response object
@@ -341,16 +299,13 @@ public class UpdateOktaGroupMembershipResource {
         {
             resp.put(oktaJDMemberAttrName, jdMemberListSet);
         }
-        
         return Response.status(Response.Status.OK).entity(resp.toString()).build();
-        
-        //return jdMemberListSet + "\n$$$$$$$$ " + userInGroupsSet + "\n$$$$$$$$ " + s1 + "\n$$$$$$$" + s2;
     }
     
     private String getGroupId(String g) {
         String gid = new String();
         String gUrl = oktaSearchGroupUrl + g.trim();
-        RetObj ret = HTTPUtil.get(gUrl);
+        RetObj ret = myHTTPUtil.get(gUrl);
         if(ret.responseCode == 200) {
             JSONArray jArr = new JSONArray(ret.output);
             Iterator<Object> itr = jArr.iterator();
@@ -372,7 +327,5 @@ public class UpdateOktaGroupMembershipResource {
             gid = "ERROR";
         }
         return gid;
-        
-        
     }
 }

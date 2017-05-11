@@ -5,23 +5,15 @@
  */
 package com.okta.oktaldapbridge;
 
-import java.io.IOException;
-import java.io.InputStream;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.UriInfo;
 import javax.ws.rs.Produces;
-import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
-import javax.ws.rs.POST;
 import javax.ws.rs.Path;
-import javax.ws.rs.PUT;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.core.MediaType;
 
 import org.json.*;
 
 import java.text.MessageFormat;
-import java.util.Properties;
 import javax.ws.rs.core.Response;
 
 import org.slf4j.Logger;
@@ -53,19 +45,17 @@ public class UserTypeResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response getJson(@PathParam("userName") String userName) {
         
+        LOGGER.debug("Looking for : " + userName);
         if(userName == null || userName.trim().length() == 0) {
+            LOGGER.error("Empty or missing userName passed.");
             return Response.status(Response.Status.BAD_REQUEST).entity("userName cannot be empty").build();
-            //return Response.serverError().entity("userName cannot be blank").build();
         }
-        //TODO return proper representation object
-        LOGGER.debug("debug 1     " + userName);
         searchFilter = MessageFormat.format(searchFilter,userName);
         String result = new String();
         try {
-        result = LDAPUtil.queryLDAP(searchFilter);
+            result = LDAPUtil.queryLDAP(searchFilter);
         } catch (Exception e) {
-            System.err.println("Exception querying LDAP");
-            
+            LOGGER.error("Exception querying LDAP", e);
             return Response.status(Response.Status.NOT_FOUND).entity("User not found in LDAP for userName: " + userName).build();
         }
         // Build response object
@@ -76,7 +66,6 @@ public class UserTypeResource {
         resp.put("userType", uStr);
         
         return Response.status(Response.Status.OK).entity(resp.toString()).build();
-        //return Response.ok(resp, MediaType.APPLICATION_JSON).build();
 
     }
 }

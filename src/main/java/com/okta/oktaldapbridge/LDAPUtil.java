@@ -70,17 +70,24 @@ public final class LDAPUtil {
             connectionString = prop.getProperty("connectionString");
             searchbase = prop.getProperty("searchbase");
             attributes = prop.getProperty("attributes");
+            
+            //Remove below logs after testing
+            LOGGER.debug("dbuser : " + dbuser);
+            LOGGER.debug("dbpassword : " + dbpassword);
+            LOGGER.debug("connectionString : " + connectionString);
+            LOGGER.debug("searchbase : " + searchbase);
+            LOGGER.debug("attributes : " + attributes);
 
             attributeFilter = attributes.split(",");
 
         } catch (IOException ex) {
-            ex.printStackTrace();
+            LOGGER.error("Error reading LDAP configuration", ex);
         } finally {
             if (input != null) {
                 try {
                     input.close();
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    LOGGER.error("Error closing config file", e);
                 }
             }
         }        
@@ -100,7 +107,6 @@ public final class LDAPUtil {
 
     DirContext dctx = new InitialDirContext(env);
 
-
     String base = searchbase;
 
     SearchControls sc = new SearchControls();
@@ -118,8 +124,10 @@ public final class LDAPUtil {
     }
     dctx.close();
     if(i==1) {
+        LOGGER.debug("Found exactly one user for filter : " + filter);
         retStr = convertToJson(sr);
     } else {
+        LOGGER.debug("No results found for filter : " + filter);
         throw new javax.naming.NamingException("Check username");
     }
     return retStr;
@@ -151,10 +159,12 @@ public final class LDAPUtil {
     while(results.hasMore()){
          i++;
     }
-    dctx.close();
     if(i==1) {
         
-        String dn = sr.getAttributes().get("dn").get().toString();
+        String dn = sr.getNameInNamespace();
+        LOGGER.debug("Found exactly one user for filter : " + filter);
+        LOGGER.debug("DN for user : " + dn);
+        
         ModificationItem[] mods = new ModificationItem[attrValmap.keySet().size()];
         int count = 0;
         Iterator it = attrValmap.keySet().iterator();
@@ -162,6 +172,7 @@ public final class LDAPUtil {
         {
             String key = it.next().toString();
             String val = attrValmap.get(key).toString();
+            LOGGER.debug("Modifying attribute : " + key + " to value : "+val);
             Attribute mod = new BasicAttribute(key, val);
             mods[count++] = new ModificationItem(DirContext.REPLACE_ATTRIBUTE, mod);
         }
@@ -171,6 +182,7 @@ public final class LDAPUtil {
     } else {
         throw new javax.naming.NamingException("Check username");
     }
+    dctx.close();
     return true;
   }
   
@@ -184,7 +196,7 @@ public final class LDAPUtil {
             Attribute attr = attrs.get(name);
             try {
                 value = "";
-                if (name!="JDMember") {
+                if (!name.equalsIgnoreCase("JDMember")) {
                     // No special handling for single valued attributes
                     value = attr.get().toString();
                 } else {
@@ -205,13 +217,12 @@ public final class LDAPUtil {
                 LOGGER.error(ex + " Unable to retrieve attribute to build JSON");
                 
             }
-            LOGGER.debug("debug 444 " + value);
-            //LOGGER.debug("debug 555 " + value.substring(value.in));
+            LOGGER.debug("Attr : "+name+" has value :" + value);
             retObj.put(name, value);
             i++;
       }
       
-      LOGGER.debug(retObj.toString());
+      LOGGER.debug("Converted to JSON String : "+ retObj.toString());
       return retObj.toString();
   }
 }
